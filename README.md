@@ -25,8 +25,11 @@ still works without the crop UI.
 - **Add people:** select a node, then use the **+** (below / beside) and **×** buttons.
 - **Edit text:** click a name, title, or specialties line — it becomes an input in place.
 - **Edit the group title / unit badge:** click them directly.
-- **Photos:** click a node's photo to upload and crop. For the deck look, upload a
-  background-removed (transparent PNG) cut-out — transparency is preserved.
+- **Photos:** click a node's photo to open the editor. Add an image by **choosing a
+  file, dragging & dropping**, or **pasting from the clipboard** (Ctrl/Cmd+V), then
+  crop it. Tick **Remove white background** to auto-cut a plain-white-backdrop photo
+  to a transparent PNG (an edge flood-fill, so a white shirt inside the person is
+  kept). Transparency is preserved through save/export.
 - **Units:** each tab is a unit (e.g. "Server Storage Unit"); double-click a tab to rename.
 - **Save/share:** work autosaves to this browser's `localStorage`. Use **Export All Units
   (JSON)** to back up or hand off, and **Import JSON** to restore. **Export PNG** renders

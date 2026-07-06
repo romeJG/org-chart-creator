@@ -36,7 +36,6 @@
   var MIN_SLIDE_H = 720;
 
   // Photo processing
-  var PHOTO_MAX_DIM = 160; // fallback downscale when Cropper is unavailable
   var PHOTO_OUT_DIM = 400; // cropped output max dimension
 
   var SVG_NS = 'http://www.w3.org/2000/svg';
@@ -107,26 +106,99 @@
     return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
   }
 
-  function resizeImageToDataURL(file, maxDim, callback) {
-    var reader = new FileReader();
-    reader.onload = function () {
-      var img = new Image();
-      img.onload = function () {
-        var scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-        var w = Math.max(1, Math.round(img.width * scale));
-        var h = Math.max(1, Math.round(img.height * scale));
-        var canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        var ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, w, h);
-        callback(canvas.toDataURL('image/png'));
-      };
-      img.onerror = function () { alert('Could not read that image file.'); };
-      img.src = reader.result;
+  // Downscale a data URL so its longest side is at most maxDim, returning a PNG
+  // data URL (preserves any transparency). Used to cap photo size in the
+  // offline path where Cropper (which normally does the sizing) isn't available.
+  function scaleDownDataURL(dataUrl, maxDim, callback) {
+    var img = new Image();
+    img.onload = function () {
+      var scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+      var w = Math.max(1, Math.round(img.width * scale));
+      var h = Math.max(1, Math.round(img.height * scale));
+      var canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      callback(canvas.toDataURL('image/png'));
     };
-    reader.onerror = function () { alert('Could not read that image file.'); };
-    reader.readAsDataURL(file);
+    img.onerror = function () { callback(dataUrl); };
+    img.src = dataUrl;
+  }
+
+  // Knock out a white/near-white background in place on an ImageData.
+  // Uses a flood fill seeded from the image edges, so only background that is
+  // connected to the border is removed — a white shirt or highlight *inside*
+  // the person (not touching an edge) is kept. A soft band near the threshold
+  // feathers the cut so hair/edges don't look jagged.
+  function knockoutWhiteBackground(imageData) {
+    var w = imageData.width, h = imageData.height, px = imageData.data, n = w * h;
+    var HARD = 22;  // whiteness <= this -> fully transparent
+    var SOFT = 72;  // whiteness <= this -> part of background (connectivity + feather edge)
+    var bg = new Uint8Array(n);
+    var stack = new Int32Array(n);
+    var sp = 0;
+
+    function whiteness(i) {
+      var o = i * 4;
+      // How far the *darkest* channel is below 255. White -> 0; darker/colored -> higher.
+      var m = px[o];
+      if (px[o + 1] < m) m = px[o + 1];
+      if (px[o + 2] < m) m = px[o + 2];
+      return 255 - m;
+    }
+    function seed(i) { if (!bg[i] && whiteness(i) <= SOFT) { bg[i] = 1; stack[sp++] = i; } }
+
+    var x, y;
+    for (x = 0; x < w; x++) { seed(x); seed((h - 1) * w + x); }
+    for (y = 0; y < h; y++) { seed(y * w); seed(y * w + (w - 1)); }
+
+    while (sp > 0) {
+      var i = stack[--sp];
+      var ix = i % w, iy = (i - ix) / w;
+      if (ix > 0) seed(i - 1);
+      if (ix < w - 1) seed(i + 1);
+      if (iy > 0) seed(i - w);
+      if (iy < h - 1) seed(i + w);
+    }
+
+    for (var j = 0; j < n; j++) {
+      if (!bg[j]) continue;
+      var wv = whiteness(j);
+      var o2 = j * 4;
+      if (wv <= HARD) {
+        px[o2 + 3] = 0;
+      } else {
+        var a = (wv - HARD) / (SOFT - HARD); // 0..1 across the feather band
+        px[o2 + 3] = Math.round(a * px[o2 + 3]);
+      }
+    }
+  }
+
+  // Loads a data URL, removes its white background, returns a PNG data URL
+  // (async via callback). Downscales very large sources first so the flood
+  // fill stays fast — final org-chart photos are small anyway.
+  function removeWhiteBackgroundDataURL(dataUrl, callback) {
+    var img = new Image();
+    img.onload = function () {
+      var maxDim = 1400;
+      var scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+      var w = Math.max(1, Math.round(img.width * scale));
+      var h = Math.max(1, Math.round(img.height * scale));
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      var data;
+      try {
+        data = ctx.getImageData(0, 0, w, h);
+      } catch (e) { callback(dataUrl); return; }
+      knockoutWhiteBackground(data);
+      ctx.putImageData(data, 0, 0);
+      callback(canvas.toDataURL('image/png'));
+    };
+    img.onerror = function () { callback(dataUrl); };
+    img.src = dataUrl;
   }
 
   function sanitizeFilename(name) {
@@ -922,12 +994,16 @@
     backdrop.innerHTML =
       '<div class="photo-modal">' +
         '<h3>Edit photo</h3>' +
-        '<p class="photo-modal-hint">Tip: upload a background-removed (transparent PNG) cut-out for the deck look.</p>' +
+        '<p class="photo-modal-hint">Choose a file, drag &amp; drop, or paste (Ctrl/Cmd+V) an image. For the deck look, use a photo on a plain white background and tick “Remove background”.</p>' +
         '<div class="photo-crop-area">' +
           (node.photo
             ? '<img class="photo-crop-img" src="' + escapeAttr(node.photo) + '">'
-            : '<span class="photo-crop-empty">Choose an image to begin</span>') +
+            : '<span class="photo-crop-empty">Choose, drop, or paste an image to begin</span>') +
         '</div>' +
+        '<label class="pm-removebg-row">' +
+          '<input type="checkbox" class="pm-removebg"> Remove white background ' +
+          '<span class="pm-removebg-note">(best on a plain white backdrop)</span>' +
+        '</label>' +
         '<div class="photo-modal-actions">' +
           '<button type="button" class="pm-choose">Choose image…</button>' +
           '<input type="file" class="pm-file" accept="image/*" style="display:none">' +
@@ -945,9 +1021,17 @@
     var removeBtn = backdrop.querySelector('.pm-remove');
     var cancelBtn = backdrop.querySelector('.pm-cancel');
     var saveBtn = backdrop.querySelector('.pm-save');
+    var removeBgCheckbox = backdrop.querySelector('.pm-removebg');
     var imgEl = backdrop.querySelector('.photo-crop-img');
     var cropper = null;
-    var pendingDataUrl = null;
+
+    // originalDataUrl = the un-processed source (from file/drop/paste, or the
+    // node's existing photo). displayDataUrl = what's currently shown/cropped,
+    // which is the original or its background-removed version. renderToken guards
+    // against stale async results when the user toggles/reloads quickly.
+    var originalDataUrl = node.photo || null;
+    var displayDataUrl = node.photo || null;
+    var renderToken = 0;
 
     function initCropper() {
       if (!hasCropper || !imgEl) return;
@@ -956,38 +1040,89 @@
         viewMode: 1, autoCropArea: 1, background: false, movable: true, zoomable: true, dragMode: 'move'
       });
     }
-    function attachCropper() {
-      if (!hasCropper || !imgEl) return;
-      if (imgEl.complete) initCropper();
-      else imgEl.addEventListener('load', initCropper);
-    }
-    attachCropper();
 
-    function setImage(dataUrl) {
+    function showImage(dataUrl) {
       if (cropper) { cropper.destroy(); cropper = null; }
+      displayDataUrl = dataUrl;
+      area.classList.add('has-alpha');
+      area.classList.remove('photo-crop-processing');
       area.innerHTML = '<img class="photo-crop-img" src="' + escapeAttr(dataUrl) + '">';
       imgEl = area.querySelector('.photo-crop-img');
-      pendingDataUrl = dataUrl;
       saveBtn.disabled = false;
       removeBtn.style.display = '';
-      attachCropper();
+      if (hasCropper) {
+        if (imgEl.complete) initCropper();
+        else imgEl.addEventListener('load', initCropper);
+      }
+    }
+
+    function showProcessing() {
+      if (cropper) { cropper.destroy(); cropper = null; }
+      area.classList.remove('has-alpha');
+      area.innerHTML = '<span class="photo-crop-processing">Removing background…</span>';
+      imgEl = null;
+      saveBtn.disabled = true;
+    }
+
+    // Rebuild the preview from originalDataUrl, applying background removal if the
+    // checkbox is ticked. Called after any new source or a checkbox toggle.
+    function refreshDisplay() {
+      var token = ++renderToken;
+      if (!originalDataUrl) return;
+      if (removeBgCheckbox.checked) {
+        showProcessing();
+        removeWhiteBackgroundDataURL(originalDataUrl, function (out) {
+          if (token !== renderToken || !backdrop.parentNode) return; // superseded/closed
+          showImage(out);
+        });
+      } else {
+        showImage(originalDataUrl);
+      }
+    }
+
+    function handleIncomingFile(file) {
+      if (!file || !/^image\//.test(file.type || '')) return;
+      var reader = new FileReader();
+      reader.onload = function () { originalDataUrl = reader.result; refreshDisplay(); };
+      reader.onerror = function () { alert('Could not read that image file.'); };
+      reader.readAsDataURL(file);
     }
 
     chooseBtn.addEventListener('click', function () { fileInput.click(); });
     fileInput.addEventListener('change', function (e) {
-      var file = e.target.files[0];
-      if (!file) return;
-      if (hasCropper) {
-        var reader = new FileReader();
-        reader.onload = function () { setImage(reader.result); };
-        reader.onerror = function () { alert('Could not read that image file.'); };
-        reader.readAsDataURL(file);
-      } else {
-        resizeImageToDataURL(file, PHOTO_MAX_DIM, function (dataUrl) { setImage(dataUrl); });
-      }
+      if (e.target.files[0]) handleIncomingFile(e.target.files[0]);
+    });
+    removeBgCheckbox.addEventListener('change', refreshDisplay);
+
+    // Drag & drop onto the preview area.
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      area.addEventListener(ev, function (e) { e.preventDefault(); e.stopPropagation(); area.classList.add('drag-over'); });
+    });
+    ['dragleave', 'dragend'].forEach(function (ev) {
+      area.addEventListener(ev, function (e) { e.preventDefault(); e.stopPropagation(); area.classList.remove('drag-over'); });
+    });
+    area.addEventListener('drop', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      area.classList.remove('drag-over');
+      var dt = e.dataTransfer;
+      if (dt && dt.files && dt.files[0]) handleIncomingFile(dt.files[0]);
     });
 
+    // Clipboard paste (Ctrl/Cmd+V) anywhere while the modal is open.
+    function onPaste(e) {
+      var items = e.clipboardData && e.clipboardData.items;
+      if (!items) return;
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].type && items[i].type.indexOf('image') === 0) {
+          var file = items[i].getAsFile();
+          if (file) { e.preventDefault(); handleIncomingFile(file); return; }
+        }
+      }
+    }
+    document.addEventListener('paste', onPaste);
+
     function close() {
+      document.removeEventListener('paste', onPaste);
       if (cropper) { cropper.destroy(); cropper = null; }
       if (backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
       if (activePhotoModal && activePhotoModal._backdrop === backdrop) activePhotoModal = null;
@@ -1009,12 +1144,15 @@
           reader.onload = function () { applyPhoto(reader.result); };
           reader.readAsDataURL(blob);
         }, 'image/png');
-      } else if (pendingDataUrl) {
-        applyPhoto(pendingDataUrl);
-      } else if (imgEl) {
-        applyPhoto(imgEl.src);
+      } else if (displayDataUrl) {
+        // No cropper (offline): the displayed image already has bg removed if
+        // ticked; cap its size here since Cropper normally handles that.
+        scaleDownDataURL(displayDataUrl, PHOTO_OUT_DIM, function (out) { applyPhoto(out); });
       }
     });
+
+    // If the node already had a photo, show it (with cropper) right away.
+    if (originalDataUrl) refreshDisplay();
 
     activePhotoModal = { close: close, _backdrop: backdrop };
   }

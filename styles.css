@@ -183,9 +183,28 @@ body {
   justify-content: center;
   overflow: hidden;
 }
-.photo-crop-empty { color: #94a3b8; font-size: 13px; }
+.photo-crop-empty { color: #94a3b8; font-size: 13px; text-align: center; padding: 0 16px; }
 /* Cropper needs the image to be a plain block it can wrap */
 .photo-crop-area img { display: block; max-width: 100%; }
+/* Checkerboard so a removed (transparent) background is visible in the preview */
+.photo-crop-area.has-alpha {
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #e2e8f0 25%, transparent 25%),
+    linear-gradient(-45deg, #e2e8f0 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e2e8f0 75%),
+    linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+  background-size: 18px 18px;
+  background-position: 0 0, 0 9px, 9px -9px, -9px 0;
+}
+.photo-crop-area.drag-over { border-color: #2563eb; border-style: solid; background-color: #eaf1ff; }
+.photo-crop-processing { color: #64748b; font-size: 13px; }
+.pm-removebg-row {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: #334155; cursor: pointer; user-select: none;
+}
+.pm-removebg-row input { cursor: pointer; }
+.pm-removebg-note { color: #94a3b8; font-size: 11px; }
 .photo-modal-actions { display: flex; align-items: center; gap: 8px; }
 .photo-modal-actions .spacer { flex: 1 1 auto; }
 .photo-modal-actions button {

@@ -1,0 +1,212 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  background: #ffffff;
+  color: #1a1a1a;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Tab bar */
+#tabbar {
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border-bottom: 1px solid #ddd;
+  padding: 0 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  cursor: pointer;
+  border-right: 1px solid #eee;
+  color: #555;
+  user-select: none;
+}
+.tab.active { color: #1a1a1a; font-weight: 600; border-bottom: 2px solid #2563eb; }
+.tab-label { cursor: pointer; }
+.tab-close {
+  border: none; background: transparent; color: #999; cursor: pointer;
+  font-size: 13px; line-height: 1; padding: 2px 4px; border-radius: 3px;
+}
+.tab-close:hover { background: #fee2e2; color: #dc2626; }
+.tab-rename-input {
+  font: inherit; font-weight: 600; border: 1px solid #2563eb; border-radius: 3px;
+  padding: 1px 4px; width: 120px;
+}
+#add-tab-btn {
+  border: none; background: transparent; font-size: 18px; cursor: pointer;
+  color: #2563eb; padding: 4px 12px; flex: 0 0 auto;
+}
+#add-tab-btn:hover { color: #1e40af; }
+
+/* Toolbar */
+#toolbar {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  padding: 8px 12px; background: #fafafa; border-bottom: 1px solid #eee; flex: 0 0 auto;
+}
+#toolbar button {
+  padding: 6px 12px; border: 1px solid #ccc; border-radius: 4px;
+  background: #fff; cursor: pointer; font-size: 13px;
+}
+#toolbar button:hover { background: #f0f0f0; }
+#toolbar button:disabled { opacity: 0.4; cursor: default; background: #fff; }
+#toolbar .spacer { flex: 1 1 auto; }
+#toolbar .hint {
+  font-size: 12px; color: #888;
+}
+#toolbar .toolbar-divider {
+  width: 1px; align-self: stretch; background: #ddd; margin: 0 2px;
+}
+#zoom-out-btn, #zoom-in-btn { padding-left: 14px; padding-right: 14px; font-weight: bold; }
+#zoom-fit-btn { min-width: 48px; }
+
+/* Canvas */
+#canvas-wrap {
+  flex: 1 1 auto;
+  overflow: hidden;
+  background: #ffffff;
+  position: relative;
+}
+/* Zoom-to-fit is the default (SVG stretches via CSS % to its container).
+   In manual zoom mode (.zoomed) the SVG gets an explicit pixel size instead
+   and the container scrolls, acting as a simple pan. */
+#canvas-wrap.zoomed { overflow: auto; }
+#chart-svg { display: block; width: 100%; height: 100%; }
+
+#empty-placeholder {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 100%;
+  color: #64748b;
+}
+#empty-placeholder button {
+  padding: 8px 16px; border: 1px solid #2563eb; border-radius: 4px;
+  background: #2563eb; color: #fff; cursor: pointer; font-size: 14px;
+}
+#empty-placeholder button:hover { background: #1e40af; }
+
+/* SVG interaction affordances */
+.node .node-box { cursor: pointer; }
+.node .node-name,
+.node .node-title,
+.node .node-title-placeholder,
+.node .node-spec,
+.node .node-spec-placeholder { cursor: text; }
+.node .node-photo { cursor: pointer; }
+.ui-btn { cursor: pointer; }
+
+/* Drag-to-swap / Shift+drag-to-reparent feedback */
+.node.drag-source { opacity: 0.4; }
+.node.drag-over .node-box { stroke: #22c55e; stroke-width: 3.5; }
+.node.drag-over-reparent .node-box { stroke: #f59e0b; stroke-width: 3.5; stroke-dasharray: 6 3; }
+.drag-ghost {
+  position: fixed;
+  z-index: 300;
+  pointer-events: none;
+  background: #0b1c3f;
+  color: #ffffff;
+  border: 1px solid #2f6df6;
+  border-radius: 4px;
+  padding: 3px 9px;
+  font: bold 12px Arial, Helvetica, sans-serif;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.45);
+}
+
+/* Inline field editor (an input placed over an SVG text element).
+   Fixed to the viewport so it needs no scroll-offset math. */
+.inline-edit {
+  position: fixed;
+  z-index: 150;
+  box-sizing: border-box;
+  font-family: Arial, Helvetica, sans-serif;
+  border: 1px solid #2563eb;
+  border-radius: 3px;
+  padding: 1px 3px;
+  background: #ffffff;
+  text-align: center;
+}
+.inline-edit-name { font-size: 15px; font-weight: bold; color: #0c1f45; }
+.inline-edit-title { font-size: 12px; color: #22375c; }
+.inline-edit-spec { font-size: 11px; font-style: italic; color: #41598a; }
+.inline-edit-grouptitle {
+  font-family: Georgia, "Times New Roman", serif; font-size: 40px; color: #c9a86a;
+  background: #0b1c3f; border-color: #c9a86a; text-align: left;
+}
+.inline-edit-badge {
+  font-size: 20px; font-weight: 600; color: #ffffff;
+  background: #1f7280; border-color: #0e4a54; text-align: left;
+}
+
+/* Photo editor modal (Cropper.js) */
+.photo-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.photo-modal {
+  background: #ffffff;
+  border-radius: 8px;
+  width: 380px;
+  max-width: 92vw;
+  padding: 16px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.photo-modal h3 { margin: 0; font-size: 15px; }
+.photo-modal-hint { margin: 0; font-size: 11px; color: #64748b; }
+.photo-crop-area {
+  width: 100%;
+  height: 260px;
+  background: #f1f3f6;
+  border: 1px dashed #cbd5e1;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.photo-crop-empty { color: #94a3b8; font-size: 13px; }
+/* Cropper needs the image to be a plain block it can wrap */
+.photo-crop-area img { display: block; max-width: 100%; }
+.photo-modal-actions { display: flex; align-items: center; gap: 8px; }
+.photo-modal-actions .spacer { flex: 1 1 auto; }
+.photo-modal-actions button {
+  padding: 6px 12px; border: 1px solid #ccc; border-radius: 4px;
+  background: #fff; cursor: pointer; font-size: 13px;
+}
+.photo-modal-actions button:hover { background: #f0f0f0; }
+.photo-modal-actions .pm-remove { color: #dc2626; border-color: #f0c4c4; }
+.photo-modal-actions .pm-remove:hover { background: #fee2e2; }
+.photo-modal-actions .pm-save {
+  background: #2563eb; color: #fff; border-color: #2563eb;
+}
+.photo-modal-actions .pm-save:hover { background: #1e40af; }
+.photo-modal-actions .pm-save:disabled { opacity: 0.5; cursor: default; }
+
+/* Footer */
+#footer {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  font-size: 11px;
+  color: #999;
+  background: #fafafa;
+  border-top: 1px solid #eee;
+}

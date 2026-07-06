@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Org Chart Builder</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
+</head>
+<body>
+
+  <div id="tabbar"></div>
+
+  <div id="toolbar">
+    <button id="undo-btn" title="Undo (Ctrl+Z)">Undo</button>
+    <button id="redo-btn" title="Redo (Ctrl+Shift+Z)">Redo</button>
+    <span class="toolbar-divider"></span>
+    <button id="zoom-out-btn" title="Zoom out (Ctrl+-)">&minus;</button>
+    <button id="zoom-fit-btn" title="Reset zoom to fit">Fit</button>
+    <button id="zoom-in-btn" title="Zoom in (Ctrl+=)">&plus;</button>
+    <span class="toolbar-divider"></span>
+    <button id="export-team-json-btn">Export Unit (JSON)</button>
+    <button id="export-all-json-btn">Export All Units (JSON)</button>
+    <button id="export-png-btn">Export PNG</button>
+    <button id="export-svg-btn">Export SVG</button>
+    <button id="import-btn">Import JSON</button>
+    <input type="file" id="import-file-input" accept="application/json,.json" style="display:none">
+    <div class="spacer"></div>
+    <span class="hint">Click a node to select it, then use +/&times; to build the tree. Click a name, title, specialties line, or photo to edit. Drag a node onto another to swap the two people; hold Shift while dragging to move them (with their reports) under a new manager instead.</span>
+  </div>
+
+  <div id="canvas-wrap">
+    <svg id="chart-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div id="empty-placeholder"></div>
+  </div>
+
+  <div id="footer">
+    Autosaves in this browser as you work. Use "Export All Units (JSON)" regularly to back up or hand off your work — autosave does not leave this browser.
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

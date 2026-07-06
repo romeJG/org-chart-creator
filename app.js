@@ -6,6 +6,7 @@
   // ---------------------------------------------------------------------
   var SCHEMA_VERSION = 1;
   var STORAGE_KEY = 'org-chart-builder:document:v1';
+  var HIDE_PHOTOS_KEY = 'org-chart-builder:hide-photos';
   var DEFAULT_GROUP_TITLE = 'Presales & Solutions Design Group';
 
   // Node box
@@ -64,6 +65,11 @@
   var ZOOM_STEP = 0.15;
   var ZOOM_MIN = 0.25;
   var ZOOM_MAX = 3;
+
+  // View-only preference (not part of the chart document): hides every photo
+  // and tightens the layout to just boxes + connectors. Persisted separately
+  // from the document so it isn't bundled into JSON exports.
+  var photosHidden = false;
 
   var measureCanvas = document.createElement('canvas');
   var measureCtx = measureCanvas.getContext('2d');
@@ -304,6 +310,14 @@
     persistTimer = setTimeout(persist, 500);
   }
 
+  function loadPhotosHiddenPref() {
+    try { photosHidden = localStorage.getItem(HIDE_PHOTOS_KEY) === '1'; } catch (e) { photosHidden = false; }
+  }
+
+  function savePhotosHiddenPref() {
+    try { localStorage.setItem(HIDE_PHOTOS_KEY, photosHidden ? '1' : '0'); } catch (e) {}
+  }
+
   function loadFromStorage() {
     var raw = null;
     try { raw = localStorage.getItem(STORAGE_KEY); } catch (e) { raw = null; }
@@ -323,10 +337,15 @@
   // ---------------------------------------------------------------------
   // Layout algorithm
   // ---------------------------------------------------------------------
+  // Leaf footprint: full width (box + room for the photo to hang past its edges)
+  // when photos are showing, or just the box when they're hidden — so hiding
+  // photos actually tightens the chart instead of leaving empty gaps.
+  function currentFootprintW() { return photosHidden ? BOX_W : FOOTPRINT_W; }
+
   function computeSubtreeWidth(nodeId, nodes) {
     var node = nodes[nodeId];
     if (!node.childIds.length) {
-      node._subtreeWidth = FOOTPRINT_W;
+      node._subtreeWidth = currentFootprintW();
       return node._subtreeWidth;
     }
     var total = 0;
@@ -334,7 +353,7 @@
       total += computeSubtreeWidth(cid, nodes);
       if (i > 0) total += H_GAP;
     });
-    node._subtreeWidth = Math.max(FOOTPRINT_W, total);
+    node._subtreeWidth = Math.max(currentFootprintW(), total);
     return node._subtreeWidth;
   }
 
@@ -400,10 +419,10 @@
     ids.forEach(function (id) {
       var n = team.nodes[id];
       var pr = n._photoRect;
-      minX = Math.min(minX, n._x - BOX_W / 2, pr.x);
-      maxX = Math.max(maxX, n._x + BOX_W / 2, pr.x + pr.w);
-      minY = Math.min(minY, n._y, pr.y);
-      maxY = Math.max(maxY, n._y + BOX_H, pr.y + pr.h);
+      minX = Math.min(minX, n._x - BOX_W / 2, photosHidden ? Infinity : pr.x);
+      maxX = Math.max(maxX, n._x + BOX_W / 2, photosHidden ? -Infinity : pr.x + pr.w);
+      minY = Math.min(minY, n._y, photosHidden ? Infinity : pr.y);
+      maxY = Math.max(maxY, n._y + BOX_H, photosHidden ? -Infinity : pr.y + pr.h);
     });
     return { minX: minX, maxX: maxX, minY: minY, maxY: maxY };
   }
@@ -422,10 +441,13 @@
       fill: '#d7e3f7', stroke: selected ? '#2f6df6' : '#aebfe0', 'stroke-width': selected ? '3' : '1'
     }));
 
-    // Photo (drawn after the box so it overlaps the edge)
+    // Photo (drawn after the box so it overlaps the edge) — skipped entirely
+    // when the "Hide Photos" toggle is on, per the tightened layout above.
     var pr = node._photoRect;
     var photoG = svgEl('g', { 'class': 'node-photo' });
-    if (node.photo) {
+    if (photosHidden) {
+      // no-op: leave photoG empty so click-to-edit-photo simply has no target
+    } else if (node.photo) {
       var img = svgEl('image', { x: pr.x, y: pr.y, width: pr.w, height: pr.h, preserveAspectRatio: 'xMidYMax meet' });
       img.setAttribute('href', node.photo);
       img.setAttributeNS(XLINK_NS, 'href', node.photo);
@@ -668,6 +690,22 @@
   function zoomIn() { setZoom((zoomLevel === null ? currentFitScale() : zoomLevel) + ZOOM_STEP); }
   function zoomOut() { setZoom((zoomLevel === null ? currentFitScale() : zoomLevel) - ZOOM_STEP); }
   function zoomFit() { setZoom(null); }
+
+  // ---------------------------------------------------------------------
+  // Photo visibility toggle (view-only; not saved into the chart document)
+  // ---------------------------------------------------------------------
+  function updatePhotosToggleLabel() {
+    var btn = document.getElementById('toggle-photos-btn');
+    if (btn) btn.textContent = photosHidden ? 'Show Photos' : 'Hide Photos';
+  }
+
+  function togglePhotos() {
+    closeActiveEditors();
+    photosHidden = !photosHidden;
+    savePhotosHiddenPref();
+    updatePhotosToggleLabel();
+    renderChart();
+  }
 
   // ---------------------------------------------------------------------
   // Node mutations
@@ -1452,6 +1490,7 @@
     document.getElementById('zoom-out-btn').addEventListener('click', zoomOut);
     document.getElementById('zoom-fit-btn').addEventListener('click', zoomFit);
     document.getElementById('zoom-in-btn').addEventListener('click', zoomIn);
+    document.getElementById('toggle-photos-btn').addEventListener('click', togglePhotos);
     document.getElementById('export-team-json-btn').addEventListener('click', exportTeamJSON);
     document.getElementById('export-all-json-btn').addEventListener('click', exportAllJSON);
     document.getElementById('export-png-btn').addEventListener('click', exportPNG);
@@ -1467,6 +1506,7 @@
 
     updateUndoRedoButtons();
     updateZoomLabel();
+    updatePhotosToggleLabel();
 
     // Ctrl/Cmd + scroll wheel zooms (mirrors pinch-zoom on trackpads); plain
     // scroll is left alone so it still pans a manually-zoomed, scrollable chart.
@@ -1485,6 +1525,7 @@
 
   function init() {
     loadFromStorage();
+    loadPhotosHiddenPref();
     setupToolbar();
     setupChartInteraction();
     renderTabbar();

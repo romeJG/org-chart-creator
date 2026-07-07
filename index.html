@@ -22,6 +22,15 @@
     <span class="toolbar-divider"></span>
     <button id="toggle-photos-btn" title="Show/hide photos">Hide Photos</button>
     <span class="toolbar-divider"></span>
+    <label class="toolbar-slider" title="Vertical gap between levels (connector line length)">
+      V gap
+      <input type="range" id="connector-length-range" min="24" max="260" step="2">
+    </label>
+    <label class="toolbar-slider" title="Horizontal gap between people on the same level — lower it to fit a wide unit on a slide; go negative to overlap them">
+      H gap
+      <input type="range" id="horizontal-gap-range" min="-240" max="160" step="2">
+    </label>
+    <span class="toolbar-divider"></span>
     <button id="export-team-json-btn">Export Unit (JSON)</button>
     <button id="export-all-json-btn">Export All Units (JSON)</button>
     <button id="export-png-btn">Export PNG</button>
@@ -29,7 +38,7 @@
     <button id="import-btn">Import JSON</button>
     <input type="file" id="import-file-input" accept="application/json,.json" style="display:none">
     <div class="spacer"></div>
-    <span class="hint">Click a node to select it, then use +/&times; to build the tree. Click a name, title, specialties line, or photo to edit. Drag a node onto another to swap the two people; hold Shift while dragging to move them (with their reports) under a new manager instead.</span>
+    <span class="hint">Click a node to select it, then use +/&times; to build the tree. Click a name, title, specialties line, or photo to edit. Drag a selected node's bottom-right corner to resize that person; drag the top-left grip to nudge them (and their reports) anywhere by hand, double-click the grip to snap back. Drag a node onto another to swap the two people; hold Shift while dragging to move them (with their reports) under a new manager instead.</span>
   </div>
 
   <div id="canvas-wrap">
@@ -41,6 +50,6 @@
     Autosaves in this browser as you work. Use "Export All Units (JSON)" regularly to back up or hand off your work — autosave does not leave this browser.
   </div>
 
-  <script src="app.js"></script>
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>

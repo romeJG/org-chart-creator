@@ -13,12 +13,33 @@ Everything is static HTML/CSS/JS — no framework, no build step.
 |------|---------|
 | `index.html` | Page markup + CDN/asset links |
 | `styles.css` | All styling |
-| `app.js` | Layout, SVG rendering, editing, import/export |
+| `js/` | ES modules (loaded via `<script type="module">`) |
 | `.nojekyll` | Tells GitHub Pages to serve files as-is (no Jekyll) |
+
+### `js/` modules
+
+| Module | Responsibility |
+|--------|----------------|
+| `main.js` | Entry point — wires everything and renders the first view |
+| `constants.js` | Fixed sizes, keys, and limits |
+| `state.js` | The single shared mutable state object |
+| `util.js` | Pure helpers: SVG build, text/image utils, downloads, node getters |
+| `model.js` | Document shape, persistence, undo/redo, node mutations |
+| `layout.js` | Tree layout (positions, photo placement, extents) |
+| `render.js` | SVG rendering of nodes, connectors, and the selection overlay |
+| `viewcontrols.js` | Zoom/pan, the gap sliders, and the photo toggle |
+| `editors.js` | Inline text editing and the photo-editor modal |
+| `interaction.js` | Pointer/keyboard interaction on the chart |
+| `tabs.js` | The unit tabs |
+| `io.js` | Export (JSON/PNG/SVG) and import (JSON) |
+| `toolbar.js` | Wires the toolbar controls |
 
 The only external dependency is [Cropper.js](https://github.com/fengyuanchen/cropperjs),
 loaded from a CDN for the photo-crop step. If it can't load (offline), photo upload
 still works without the crop UI.
+
+> Because the app uses ES modules, it must be served over HTTP (a dev server or
+> GitHub Pages) — opening `index.html` directly from a `file://` URL won't work.
 
 ## Using it
 
